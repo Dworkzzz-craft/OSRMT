@@ -1,5 +1,5 @@
 
-SQL CODE FOR ABOVE CODE:
+--SQL CODE FOR ABOVE CODE:
 
 CREATE DATABASE user_management;
 
@@ -77,13 +77,13 @@ CREATE TABLE testcase (
 );
 
 
-1. Update the users Table
-Run this SQL command to add the role column:
+--1. Update the users Table
+--Run this SQL command to add the role column:
   
 ALTER TABLE users ADD COLUMN role ENUM('admin', 'user') NOT NULL DEFAULT 'user';
 
 
-2.Manually Register an Admin Run this SQL command to create an admin user:
+--2.Manually Register an Admin Run this SQL command to create an admin user:
 
 INSERT INTO users (username, gmail, password, role) 
 VALUES ('admin_user', 'admin@example.com', SHA2('AdminPassword123', 256), 'admin');
