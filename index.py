@@ -1,4 +1,5 @@
 import hashlib
+from flask_cors import CORS
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from tkinter.font import Font
@@ -12,12 +13,14 @@ import xlsxwriter
 import openpyxl
 import os
 from PIL import Image, ImageTk
+import math
+from ttkbootstrap.tooltip import ToolTip  # Import ToolTip from ttkbootstrap package
 
 class LoginApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Login Page")
-        self.root.geometry("400x300")
+        self.root.geometry("400x400")                       
         self.root.config(bg="#FFFFFF")
 
         # Set the window icon using PNG
@@ -25,19 +28,72 @@ class LoginApp:
         
         font_style = ("Arial", 14)  # Increased font size
 
-        self.username_label = tk.Label(self.root, text="Username:", font=font_style)
+        self.username_label = tk.Label(self.root, text="Username:", font=font_style, bg="#FFFFFF")
         self.username_label.pack(pady=5)
-        self.username_entry = tk.Entry(self.root, font=font_style, width=25)
-        self.username_entry.pack(pady=5)
+        self.username_entry = tk.Entry(self.root, font=font_style, width=26,bg="white", fg="black",
+                                        highlightthickness=0)
+        self.username_entry.pack(pady=10)
+        
+        # When entry gains focus, set the blue border
+        self.username_entry.bind("<FocusIn>", lambda event: self.username_entry.config(
+            highlightthickness=0.5, highlightcolor="#0078D4", highlightbackground="#0078D4"))
 
-        self.password_label = tk.Label(self.root, text="Password:", font=font_style)
+        # When entry loses focus, remove the border
+        self.username_entry.bind("<FocusOut>", lambda event: self.username_entry.config(highlightthickness=0))
+
+        self.password_label = tk.Label(self.root, text="Password:", font=font_style,bg="#FFFFFF")
         self.password_label.pack(pady=5)
-        self.password_entry = tk.Entry(self.root, show="*", font=font_style, width=25)
-        self.password_entry.pack(pady=5)
+                
+        # Create a container frame for password field + button
+        self.password_container = tk.Frame(self.root, bg="#FFFFFF")
+        self.password_container.pack()
+        
+        self.password_entry = tk.Entry(self.password_container, show="*", font=font_style, width=21, bg="white", fg="black", highlightthickness=0)
+        self.password_entry.pack(side=tk.LEFT, padx=(0, 5))
+        
+        # When entry gains focus, set the blue border
+        self.password_entry.bind("<FocusIn>", lambda event: self.password_entry.config(
+            highlightthickness=0.5, highlightcolor="#0078D4", highlightbackground="#0078D4"))
 
-        self.login_button = tk.Button(self.root, text="Login", font=font_style, command=self.login, padx=10)
+        # When entry loses focus, remove the border
+        self.password_entry.bind("<FocusOut>", lambda event: self.password_entry.config(highlightthickness=0))
+        
+        self.toggle_button = tk.Button(
+            self.password_container, 
+            text="Show",  # Eye icon (optional: use "Show" instead)
+            command=self.toggle_password,
+            font=("Arial", 10),
+            width=4,  # Adjusted width for better alignment
+            bg="#0078D4", fg="white",              # White text
+            activebackground="#0078D4",  # Keep blue on active
+            activeforeground="white",
+            relief="raised",
+            borderwidth=2,
+            highlightthickness=0
+        )
+        self.toggle_button.pack(side=tk.LEFT, padx=5)
+
+        self.login_button = tk.Button(self.root, text="Login", font=font_style, command=self.login,            # Blue background
+                                        bg="#0078D4", fg="white",              # White text
+                                        activebackground="#0078D4",  # Keep blue on active
+                                        activeforeground="white",    # Keep white text on active
+                                        relief="raised",
+                                        borderwidth=2,
+                                        highlightthickness=0  # Remove extra focus border if desiredpadx=10
+                                        )
         self.login_button.pack(pady=20)
+        
+        self.username_entry.bind("<Return>", lambda event: self.login())
+        self.password_entry.bind("<Return>", lambda event: self.login())
 
+    def toggle_password(self):
+        if self.password_entry.cget('show') == '*':
+            self.password_entry.config(show='')
+            self.toggle_button.config(text='Hide')
+        else:
+            self.password_entry.config(show='*')
+            self.toggle_button.config(text='Show')
+        
     def set_app_icon(self, image_path):
         """Sets a PNG image as the application icon."""
         try:
@@ -97,16 +153,31 @@ class AdminPanel:
         self.root.title("Admin Panel")
         self.root.geometry("400x400")
         
+        # Add a variable to track the registration window
+        self.register_window = None
+        
         # Set the window icon using PNG
         self.set_app_icon("logo.png")  # Ensure "logo.png" is in the same directory
 
         font_style = ("Arial", 14)  # Increased font size
 
         if self.role == "admin":  # Ensure only admin sees this button
-            self.register_button = tk.Button(self.root, text="Register New User", font=font_style,  command=self.register_user)
+            self.register_button = tk.Button(self.root, text="Register New User", font=font_style,  command=self.register_user,            # Blue background
+                                                bg="#0078D4",fg="white",              # White text
+                                                activebackground="#0078D4",
+                                                activeforeground="white",
+                                                relief="raised",
+                                                borderwidth=2,
+                                                highlightthickness=0)
             self.register_button.pack(pady=20)
-
-        self.osrmt_button = tk.Button(self.root, text="Go to OSRMTApp", font=font_style,  command=self.open_osrmt)
+            
+        self.osrmt_button = tk.Button(self.root, text="Go to OSRMTApp", font=font_style,  command=self.open_osrmt,           # Blue background
+                                        bg="#0078D4",fg="white",              # White text
+                                        activebackground="#0078D4",
+                                        activeforeground="white",
+                                        relief="raised",
+                                        borderwidth=2,
+                                        highlightthickness=0)
         self.osrmt_button.pack(pady=20)
 
     def set_app_icon(self, image_path):
@@ -116,24 +187,56 @@ class AdminPanel:
             img = img.resize((32, 32))  # Resize if necessary
             self.icon_img = ImageTk.PhotoImage(img)
 
-            # Set the icon in the window title bar
+            # For Windows/Linux (WM_ICON)
+            self.root.iconphoto(True, self.icon_img)
+        
+            # For macOS (requires .icns, but PNG might work)
             self.root.tk.call('wm', 'iconphoto', self.root._w, self.icon_img)
 
         except Exception as e:
             print(f"Error loading icon: {e}")
     
-    def register_user(self):
-        RegisterApp(tk.Toplevel(self.root))
-
     def open_osrmt(self):
-        self.root.destroy()
-        root = tk.Tk()
-        OSRMTApp(root,self.role) # Ensure admin role is passed
-        root.mainloop()
+        # if hasattr(self, 'conn'):
+        #     self.conn.close()  # Close any existing connection
+        # self.root.destroy()
+        # root = tk.Tk()
+        # OSRMTApp(root,self.role) # Ensure admin role is passed
+        # root.mainloop()
+        self.root.withdraw()
+        osrmt_window = tk.Toplevel(self.root)
+        OSRMTApp(osrmt_window, self.role)
 
+    def register_user(self):
+        # Check if the registration window is already open and still exists
+        if self.register_window is not None and self.register_window.winfo_exists():
+            self.register_window.lift() # Bring the existing window to the front
+            return  
+        
+        # Create a Toplevel window instead of Tk() for the registration form
+        self.register_window = tk.Toplevel(self.root)
+        
+        # Disable the OSRMT button when registration window is open
+        self.osrmt_button.config(state=tk.DISABLED)
+        
+        # Bind a protocol to clear the reference when the window is closed
+        self.register_window.protocol("WM_DELETE_WINDOW", self.on_register_close)
+        
+        # Initialize the registration app in this window
+        RegisterApp(self.register_window, self)
+        
+
+    def on_register_close(self):
+        if self.register_window is not None:
+            self.register_window.destroy()
+            self.register_window = None
+        self.osrmt_button.config(state=tk.NORMAL)  # Enable the button
+    
+    
 class RegisterApp:
-    def __init__(self, root):
+    def __init__(self, root, admin_panel=None):
         self.root = root
+        self.admin_panel = admin_panel  # Store reference to AdminPanel
         self.root.title("Register User")
         self.root.geometry("400x400")
         
@@ -144,13 +247,28 @@ class RegisterApp:
 
         self.username_label = tk.Label(self.root, text="Username:", font=font_style)
         self.username_label.pack(pady=5)
-        self.username_entry = tk.Entry(self.root, font=font_style, width=25)
+        self.username_entry = tk.Entry(self.root, font=font_style, width=26)
         self.username_entry.pack(pady=5)
 
         self.password_label = tk.Label(self.root, text="Password:", font=font_style)
         self.password_label.pack(pady=5)
-        self.password_entry = tk.Entry(self.root, show="*", font=font_style, width=25)
-        self.password_entry.pack(pady=5)
+        
+        # Container frame
+        self.password_container = tk.Frame(self.root)
+        self.password_container.pack()  
+        
+        self.password_entry = tk.Entry(self.password_container, show="*", font=font_style, width=21)
+        self.password_entry.pack(side=tk.LEFT, padx=(0, 5))
+        
+        
+        self.toggle_button = tk.Button(
+            self.password_container, 
+            text="Show",  # Eye icon (optional: use "Show" instead)
+            command=self.toggle_password,
+            font=("Arial", 10),
+            width=4  # Adjusted width for better alignment
+        )
+        self.toggle_button.pack(side=tk.LEFT, padx=5)
 
         self.role_label = tk.Label(self.root, text="Role:", font=font_style)
         self.role_label.pack(pady=5)
@@ -160,9 +278,22 @@ class RegisterApp:
         self.role_label.current(0)  # Default selection
         self.role_entry = self.role_label  # Ensure role_entry refers to the combobox
 
-        self.register_button = tk.Button(self.root, text="Register", font=font_style, command=self.register)
+        self.register_button = tk.Button(self.root, text="Register", font=font_style, command=self.register)      
         self.register_button.pack(pady=20)
 
+        self.username_entry.bind("<Return>", lambda event: self.register())
+        self.password_entry.bind("<Return>", lambda event: self.register())
+        self.role_label.bind("<Return>", lambda event: self.register())
+        
+    def toggle_password(self):
+        """Toggle password visibility"""
+        if self.password_entry.cget('show') == '*':
+            self.password_entry.config(show='')
+            self.toggle_button.config(text="Hide")  # Or "Hide"
+        else:
+            self.password_entry.config(show='*')
+            self.toggle_button.config(text="Show")  # Or "Show"
+    
     def set_app_icon(self, image_path):
         """Sets a PNG image as the application icon."""
         try:
@@ -170,12 +301,29 @@ class RegisterApp:
             img = img.resize((32, 32))  # Resize if necessary
             self.icon_img = ImageTk.PhotoImage(img)
 
-            # Set the icon in the window title bar
+            # For Windows/Linux (WM_ICON)
+            self.root.iconphoto(True, self.icon_img)
+        
+            # For macOS (requires .icns, but PNG might work)
             self.root.tk.call('wm', 'iconphoto', self.root._w, self.icon_img)
 
         except Exception as e:
             print(f"Error loading icon: {e}")
             
+    def validate_password(self, password):
+            """Validates the password based on the given criteria."""
+            if len(password) < 8:
+                return "Password must be at least 8 characters long."
+            if not re.search(r'[A-Z]', password):
+                return "Password must contain at least one uppercase letter."
+            if not re.search(r'[a-z]', password):
+                return "Password must contain at least one lowercase letter."
+            if not re.search(r'\d', password):
+                return "Password must contain at least one digit."
+            if not re.search(r'[!@#$%^&*(),.?":{}|<>]', password):
+                return "Password must contain at least one special character."
+            return None  # No error means password is valid
+        
     def register(self):
         username = self.username_entry.get()
         password = self.password_entry.get()
@@ -185,6 +333,14 @@ class RegisterApp:
         if not re.match(r"^[a-zA-Z0-9_]{5,20}$", username):
             messagebox.showerror("Error", "Please enter username.")
             return
+        
+        # Validate password
+        password_error = self.validate_password(password)
+
+        if password_error:
+            messagebox.showerror("Error", password_error)
+            return  # Stop the function execution if the password is invalid
+
         
         hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
@@ -199,7 +355,14 @@ class RegisterApp:
             cursor.execute('INSERT INTO users (username, password, role) VALUES (%s, %s, %s)', (username, hashed_password, role))
             conn.commit()
             messagebox.showinfo("Success", "User registered successfully!")
+            
+            # Close the registration window
             self.root.destroy()
+            
+            # Enable the OSRMT button
+            if self.admin_panel:
+                self.admin_panel.on_register_close()  # Call AdminPanel method to enable the button
+            
         except Exception as e:
             messagebox.showerror("Error", str(e))
         finally:
@@ -207,11 +370,14 @@ class RegisterApp:
             conn.close()
 
 
-class OSRMTApp:
+class OSRMTApp:  
     def __init__(self, root, role):
         self.root = root
         self.role = role  # Store user role
         self.root.title("OSRMT")
+        self.current_project_id = None  # Stores the selected project ID
+        self.project_map = {}  # Map project names to IDs
+
         self.root.geometry("1920x1080")
         self.font_size = 14  # Base font size for non-table widgets
         
@@ -251,14 +417,35 @@ class OSRMTApp:
         # Configure a custom style for the Treeview to show borders and use smaller font
         self.configure_treeview_style()
      
+    def format_description(self, text, words_per_line=15):
+        """Format description text to add new lines after certain words."""
+        if not text:
+            return ""
+        words = text.split()
+        formatted_lines = []
+        for i in range(0, len(words), words_per_line):
+            line = ' '.join(words[i:i+words_per_line])
+            formatted_lines.append(line)
+        return '\n'.join(formatted_lines)
+
+    def auto_format_description(self, text_widget):
+        """Auto-format description text when focus is lost."""
+        current_text = text_widget.get("1.0", tk.END).strip()
+        if current_text:
+            formatted_text = self.format_description(current_text)
+            text_widget.delete("1.0", tk.END)
+            text_widget.insert("1.0", formatted_text)
+    
     def set_app_icon(self, image_path):
         """Sets a PNG image as the application icon."""
         try:
             img = Image.open(image_path)
             img = img.resize((32, 32))  # Resize if necessary
             self.icon_img = ImageTk.PhotoImage(img)
-
-            # Set the icon in the window title bar
+            # For Windows/Linux (WM_ICON)
+            self.root.iconphoto(True, self.icon_img)
+        
+            # For macOS (requires .icns, but PNG might work)
             self.root.tk.call('wm', 'iconphoto', self.root._w, self.icon_img)
 
         except Exception as e:
@@ -299,23 +486,42 @@ class OSRMTApp:
             return None
 
     def load_data_from_db(self):
-        """Fetch the latest data from ALL tables into self.data_tables."""
+        """Fetch data from ALL tables for the selected project."""
+        if not self.current_project_id:
+            return  # Ensure a project is selected
         for table_name in ["feature", "requirement", "design", "implementation", "testcase"]:
             self.load_data_for_table(table_name)
 
     def load_data_for_table(self, table_type):
-        """Load only the specified table_type from the DB."""
+        """Load only the data for the selected project."""
+        if not self.current_project_id:
+            return  # No project selected yet
+        
         cursor = self.conn.cursor(dictionary=True)
         try:
-            cursor.execute(f"SELECT * FROM {table_type}")
+            cursor.execute(f"SELECT * FROM {table_type} WHERE project_id = %s", (self.current_project_id,))
             self.data_tables[table_type] = cursor.fetchall()
         except mysql.connector.Error as err:
             messagebox.showerror("Database Error", str(err))
         finally:
             cursor.close()
-
+    
+    
     def save_to_db(self, table_type, data, action="add", old_data=None):
-        """Insert, update, or delete in the specified table while preventing duplicate IDs."""
+        
+        def clean_value(value):
+            """Convert NaN to empty string before inserting into the database."""
+            """Returns a cleaned string value, replacing None or NaN with an empty string."""
+            if value is None:
+                return ""
+            if isinstance(value, float) and math.isnan(value):  # Handle NaN values
+                return ""
+            return str(value).strip()
+        """Save data with the selected project ID."""
+        if not self.current_project_id:
+            messagebox.showerror("Error", "Please select a project first.")
+            return
+        
         cursor = self.conn.cursor(dictionary=True)
 
         try:
@@ -330,19 +536,20 @@ class OSRMTApp:
                     return  # Stop execution to prevent duplicate insertion
 
                 # Proceed with inserting a new entry
+                data["project_id"] = self.current_project_id  # Ensure project ID is included
                 columns = ", ".join(data.keys())
                 placeholders = ", ".join(["%s"] * len(data))
                 query = f"INSERT INTO {table_type} ({columns}) VALUES ({placeholders})"
-                cursor.execute(query, list(data.values()))
+                cursor.execute(query, [clean_value(val) for val in data.values()])
 
             elif action == "edit":
                 set_clause = ", ".join([f"{key} = %s" for key in data.keys()])
-                query = f"UPDATE {table_type} SET {set_clause} WHERE id = %s"
-                cursor.execute(query, list(data.values()) + [old_data["id"]])
+                query = f"UPDATE {table_type} SET {set_clause} WHERE id = %s AND project_id = %s"
+                cursor.execute(query, list(data.values()) + [old_data["id"], self.current_project_id])
 
             elif action == "delete":
-                query = f"DELETE FROM {table_type} WHERE id = %s"
-                cursor.execute(query, (data["id"],))
+                query = f"DELETE FROM {table_type} WHERE id = %s AND project_id = %s"
+                cursor.execute(query, (data["id"], self.current_project_id))
 
             self.conn.commit()
         
@@ -367,20 +574,7 @@ class OSRMTApp:
         edit_menu.add_command(label="Undo", command=self.undo)
         edit_menu.add_command(label="Redo", command=self.redo)
         self.menu_bar.add_cascade(label="Edit", menu=edit_menu)
-
-        tools_menu = tk.Menu(self.menu_bar, tearoff=0)
-        tools_menu.add_command(label="Validate", command=lambda: self.dummy_action("Validation Tool"))
-        self.menu_bar.add_cascade(label="Tools", menu=tools_menu)
-
-        admin_menu = tk.Menu(self.menu_bar, tearoff=0)
-        admin_menu.add_command(label="Users", command=lambda: self.dummy_action("User Management"))
-        admin_menu.add_command(label="Permissions", command=lambda: self.dummy_action("Permission Settings"))
-        self.menu_bar.add_cascade(label="Admin", menu=admin_menu)
-
-        system_menu = tk.Menu(self.menu_bar, tearoff=0)
-        system_menu.add_command(label="Settings", command=lambda: self.dummy_action("System Settings"))
-        self.menu_bar.add_cascade(label="System", menu=system_menu)
-
+        
         help_menu = tk.Menu(self.menu_bar, tearoff=0)
         help_menu.add_command(label="About", command=self.show_about)
         self.menu_bar.add_cascade(label="Help", menu=help_menu)
@@ -391,25 +585,62 @@ class OSRMTApp:
         """Toolbar without the Open button."""
         self.toolbar = ttk.Frame(self.root, relief=tk.RAISED, borderwidth=1)
         self.toolbar.pack(side=tk.TOP, fill=tk.X)
+        
 
-        self.new_button = ttk.Button(self.toolbar, text="New", width=9, command=self.new_item)
-        self.new_button.pack(side=tk.LEFT, padx=2, pady=2)
+        # Project selection dropdown
+        self.project_selection = ttk.Combobox(self.toolbar, values=self.get_projects(), state="readonly")
+        self.project_selection.pack(side=tk.LEFT, padx=5, pady=5)
+        self.project_selection.bind("<<ComboboxSelected>>", self.on_project_selected)
 
-        # Open button removed
-
-        self.save_button = ttk.Button(self.toolbar, text="Save", width=9,
+        # Load Images
+        self.new_project_icon = ImageTk.PhotoImage(Image.open("new_project.png").resize((24, 24)))
+        self.new_record_icon = ImageTk.PhotoImage(Image.open("new_record.png").resize((24, 24)))
+        self.save_icon = ImageTk.PhotoImage(Image.open("save.png").resize((24, 24)))
+        self.print_icon = ImageTk.PhotoImage(Image.open("print.png").resize((24, 24)))
+        self.import_icon = ImageTk.PhotoImage(Image.open("import.png").resize((24, 24)))       
+        self.refresh_icon = ImageTk.PhotoImage(Image.open("refresh.png").resize((24, 24)))
+        self.delete_icon = ImageTk.PhotoImage(Image.open("delete.png").resize((24, 24)))
+        self.about_icon = ImageTk.PhotoImage(Image.open("about.png").resize((24, 24)))
+        
+        self.new_project_button = ttk.Button(self.toolbar, image=self.new_project_icon, command=self.create_new_project)
+        self.new_project_button.pack(side=tk.LEFT, padx=5, pady=5)
+        ToolTip(self.new_project_button, text="Create New Project")  # Add Tooltip
+        
+        # Add New Button in Toolbar
+        self.add_new_button = ttk.Button(self.toolbar, image=self.new_record_icon, command=self.new_item, state=tk.DISABLED)
+        self.add_new_button.pack(side=tk.LEFT, padx=5, pady=5)
+        # Tooltip for better UX
+        ToolTip(self.add_new_button, text="Add a New Record")
+    
+        self.save_button = ttk.Button(self.toolbar, image=self.save_icon, width=9,
                                       command=lambda: self.export_to_excel(self.current_view))
         self.save_button.pack(side=tk.LEFT, padx=2, pady=2)
+        ToolTip(self.save_button, text="Save/Export")  # Add Tooltip
 
-        self.print_button = ttk.Button(self.toolbar, text="Print", width=9, command=self.print_table_as_excel)
+        self.print_button = ttk.Button(self.toolbar, image=self.print_icon, width=9, command=self.print_table_as_excel)
         self.print_button.pack(side=tk.LEFT, padx=2, pady=2)
+        ToolTip(self.print_button, text="Print records")  # Add Tooltip
 
-        self.import_button = ttk.Button(self.toolbar, text="Import Excel", width=12, command=self.import_from_excel)
+        self.import_button = ttk.Button(self.toolbar, image=self.import_icon, width=12, command=self.import_from_excel)
         self.import_button.pack(side=tk.LEFT, padx=2, pady=2)
+        ToolTip(self.import_button, text="Import records")  # Add Tooltip
+        
+        # Add Refresh Button
+        self.refresh_button = ttk.Button(self.toolbar, image=self.refresh_icon, command=self.refresh_application)
+        self.refresh_button.pack(side=tk.LEFT, padx=5, pady=5)
+        ToolTip(self.refresh_button, text="Refresh")  # Add Tooltip
+        
+         # Add Delete Project button (Only for Admin)
+        if self.role == "admin":
+            self.delete_project_button = ttk.Button(self.toolbar, image=self.delete_icon, command=self.delete_selected_project)
+            self.delete_project_button.pack(side=tk.LEFT, padx=5, pady=5)
+            ToolTip(self.delete_project_button, text="Delete Project")  # Add Tooltip
 
-        self.about_button = ttk.Button(self.toolbar, text="About", width=9, command=self.show_about)
+        self.about_button = ttk.Button(self.toolbar, image=self.about_icon, width=9, command=self.show_about)
         self.about_button.pack(side=tk.LEFT, padx=2, pady=2)
-
+        ToolTip(self.about_button, text="About")  # Add Tooltip
+    
+    
     def create_main_panes(self):
         self.paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.paned_window.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
@@ -454,6 +685,145 @@ class OSRMTApp:
         self.tree.tag_configure("implementation", foreground="black")
         self.tree.tag_configure("testcase", foreground="black")
 
+    
+    def refresh_application(self):
+        """Refreshes the entire application UI, including side panels and table data."""
+        try:
+            # Refresh project dropdown list
+            self.project_selection["values"] = self.get_projects()
+
+            # Reload the left panel (Tree View)
+            for item in self.tree.get_children():
+                self.tree.delete(item)  # Clear existing tree items
+            self.initialize_sidebar()  # Re-initialize sidebar with latest data
+
+            # Reload data for the currently selected project
+            if self.current_project_id:
+                self.load_data_from_db()  # Fetch latest data from the database
+                self.display_data_table(self.current_view)  # Refresh the right panel table view
+
+            # Update status bar
+            self.status_bar.config(text="Application refreshed successfully.")
+
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to refresh: {str(e)}")
+
+    
+    def delete_selected_project(self):
+        """Delete the currently selected project (Only for Admins)."""
+        if self.role != "admin":
+            messagebox.showerror("Permission Denied", "Only admins can delete projects.")
+            return
+
+        selected_project = self.project_selection.get()
+        if not selected_project:
+            messagebox.showerror("Error", "No project selected.")
+            return
+
+        project_id = self.project_map.get(selected_project)
+        if not project_id:
+            messagebox.showerror("Error", "Project ID not found.")
+            return
+
+        confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the project '{selected_project}'?")
+        if not confirm:
+            return
+
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+            self.conn.commit()
+            cursor.close()
+
+            messagebox.showinfo("Success", f"Project '{selected_project}' deleted successfully.")
+            self.project_selection["values"] = self.get_projects()  # Refresh the dropdown
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+    
+    def get_projects(self):
+        """Fetch available projects from the database."""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT id, name FROM projects")
+        projects = cursor.fetchall()
+        cursor.close()
+        self.project_map = {name: project_id for project_id, name in projects}
+        return list(self.project_map.keys())
+
+    def on_project_selected(self, event=None):
+        """Handle project selection change."""
+        selected_project = self.project_selection.get()
+        if selected_project:
+            self.current_project_id = self.project_map[selected_project]
+            self.refresh_application()
+            # Enable the add new button when project is selected
+            self.add_new_button.config(state=tk.NORMAL)
+        else:
+            # Disable the add new button when no project is selected
+            self.add_new_button.config(state=tk.DISABLED)
+
+    
+    def create_new_project(self):
+        """Popup form to create a new project."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Create New Project")
+        dialog.geometry("400x300")
+        
+        # Set the window icon using PNG
+        self.set_app_icon("logo.png")  # Ensure "logo.png" is in the same directory
+
+        ttk.Label(dialog, text="Project Name:").pack(pady=5)
+        project_name_entry = ttk.Entry(dialog)
+        project_name_entry.pack(pady=5)
+
+        ttk.Label(dialog, text="Description:").pack(pady=5)
+        project_desc_entry = tk.Text(dialog, height=4, width=40)
+        project_desc_entry.pack(pady=5)
+        
+        # Add Enter key bindings
+        project_name_entry.bind("<Return>", lambda event: save_project())
+        project_desc_entry.bind("<Return>", lambda event: save_project())
+
+        def save_project():
+            name = project_name_entry.get().strip()
+            desc = project_desc_entry.get("1.0", tk.END).strip()
+            if not name:
+                messagebox.showerror("Error", "Project name cannot be empty.")
+                return
+        
+            cursor = self.conn.cursor()
+            cursor.execute("INSERT INTO projects (name, description) VALUES (%s, %s)", (name, desc))
+            self.conn.commit()
+            cursor.close()
+
+            messagebox.showinfo("Success", "Project created successfully.")
+            dialog.destroy()
+            self.project_selection["values"] = self.get_projects()
+
+        ttk.Button(dialog, text="Create", command=save_project).pack(pady=10)
+
+    def display_table_data_in_left_panel(self, tree_item, table_type):
+        """
+        Fetch data for the given table_type (e.g., "feature") from self.data_tables,
+        then insert each record as a child node under the provided tree_item.
+        Each child node will show "id - name".
+        """
+        # Ensure the in-memory table is up to date.
+        self.load_data_for_table(table_type)
+    
+        # Get the data list for this table type.
+        data_list = self.data_tables.get(table_type, [])
+    
+        # If no data exists, show a placeholder child node.
+        if not data_list:
+            self.tree.insert(tree_item, "end", text="No records found")
+            return
+    
+        # Insert each record as a child node.
+        for record in data_list:
+            display_text = f"{record.get('id', '')} - {record.get('name', '')}"
+            self.tree.insert(tree_item, "end", text=display_text, tags=("record",))
+
+
     # The open_product method is still available via the File menu.
     def open_product(self):
         filepath = filedialog.askopenfilename()
@@ -462,25 +832,57 @@ class OSRMTApp:
             self.initialize_sidebar()
             self.status_bar.config(text="Product loaded. Select an item from the tree.")
 
+    
     def on_tree_select(self, event):
         selected_items = self.tree.selection()
         if not selected_items:
+            messagebox.showerror("Error", "Please select a table from the left pane.")
             return
 
         item = selected_items[0]
         item_text = self.tree.item(item, "text")
-        parent_id = self.tree.parent(item)
+        item_tags = self.tree.item(item, "tags")
 
-        if parent_id:
-            parent_text = self.tree.item(parent_id, "text").lower()
-            self.status_bar.config(text=f"Selected: {parent_text} - {item_text}")
-            for widget in self.right_frame.winfo_children():
-                widget.destroy()
-            if parent_text in self.data_tables:
-                self.current_view = parent_text
-                self.display_data_table(parent_text)
+        # Check if the selected item is a record node (child node inserted by display_table_data_in_left_panel)
+        if "record" in item_tags:
+            # Get the parent node to determine the table type.
+            parent_item = self.tree.parent(item)
+            parent_tags = self.tree.item(parent_item, "tags")
+            if parent_tags and parent_tags[0] in {"feature", "requirement", "design", "implementation", "testcase"}:
+                table_type = parent_tags[0]
+                # Update the status bar and display the complete table in the right panel.
+                self.status_bar.config(text=f"Showing full table for {table_type.capitalize()}")
+                self.current_view = table_type
+                # Clear the right panel and display the table view.
+                for widget in self.right_frame.winfo_children():
+                    widget.destroy()
+                self.display_data_table(table_type)
+        else:
+            # If the user clicks on a parent node (like "Project Feature"), expand the node to show record entries.
+            valid_tags = {"feature", "requirement", "design", "implementation", "testcase"}
+            if any(tag in valid_tags for tag in item_tags):
+                # First, clear any existing children to avoid duplicates.
+                children = self.tree.get_children(item)
+                for child in children:
+                    self.tree.delete(child)
+                # Populate the selected parent node with its record entries.
+                self.display_table_data_in_left_panel(item, item_tags[0])
+                # Update the status bar but do not change the right panel yet.
+                self.status_bar.config(text=f"Expanded {item_text} with records")
             else:
-                self.display_message("Select a specific item to view details")
+                # For other cases, clear the right panel and display the full table view (if applicable).
+                parent_id = self.tree.parent(item)
+                if parent_id:
+                    parent_text = self.tree.item(parent_id, "text").lower()
+                    self.status_bar.config(text=f"Selected: {parent_text} - {item_text}")
+                    for widget in self.right_frame.winfo_children():
+                        widget.destroy()
+                    if parent_text in self.data_tables:
+                        self.current_view = parent_text
+                        self.display_data_table(parent_text)
+                    else:
+                        self.display_message("Select a specific item to view details")
+
 
     def get_headers_for_type(self, table_type):
         # Adjust these to match your database columns exactly (all lowercase)
@@ -498,15 +900,35 @@ class OSRMTApp:
         else:
             return common
 
+    def add_new_entry(self):
+        # Ensure the user has selected a table
+        selected_item = self.tree.selection()
+        if not selected_item:
+            messagebox.showerror("Error", "Please select a table from the left pane.")
+            return
+
+        table_type = self.tree.item(selected_item, "text")  # Get the table name from the selected item
+        
+
+        if not table_type:
+            messagebox.showerror("Error", "Invalid table selection.")
+            return
+
+        # Now we can safely call the function
+        self.show_entry_form(table_type)
+
+    
     def display_data_table(self, table_type):
-        # Clear any previous tableview reference
+        # Clear existing widgets from the right panel
+        for widget in self.right_frame.winfo_children():
+            widget.destroy()
         self.current_tableview = None
 
         control_frame = ttk.Frame(self.right_frame)
         control_frame.pack(fill=tk.X, padx=5, pady=5)
 
         add_button = ttk.Button(control_frame, text="Add New",
-                                command=lambda: self.show_entry_form(table_type))
+                                command=lambda: self.new_item())
         add_button.pack(side=tk.LEFT, padx=5)
 
         export_button = ttk.Button(control_frame, text="Export to Excel",
@@ -540,9 +962,9 @@ class OSRMTApp:
         y_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         x_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-
-        # Populate treeview rows
-        for row_data in self.data_tables[table_type]:
+        
+        # Populate treeview rows with data
+        for row_data in self.data_tables.get(table_type, []):  # Safe dictionary access
             values = [row_data.get(h, "") for h in headers]
             treeview.insert("", "end", values=values)
 
@@ -557,11 +979,19 @@ class OSRMTApp:
         messagebox.showinfo("Fetch", f"Data for '{table_type}' has been refreshed from the database.")
 
     def show_entry_form(self, table_type):
+        # Check if a project is selected
+        if not self.current_project_id:
+            messagebox.showerror("Error", "Please select a project before adding new records.")
+            return
+        
         dialog = tk.Toplevel(self.root)
-        dialog.title(f"Add New {table_type.capitalize()}")
-        dialog.geometry("500x400")
+        dialog.title(f"Add New {table_type.capitalize() if table_type else 'Entry'}")
+        dialog.geometry("500x500")
         dialog.transient(self.root)
         dialog.grab_set()
+        
+        # Set the window icon using PNG
+        self.set_app_icon("logo.png")  # Ensure "logo.png" is in the same directory
 
         form_frame = ttk.Frame(dialog, padding=5)
         form_frame.pack(fill=tk.BOTH, expand=True)
@@ -574,6 +1004,8 @@ class OSRMTApp:
         
             if field == "description":
                 widget = tk.Text(form_frame, height=4, width=40)
+                # Add this line to bind the auto-formatting:
+                widget.bind("<FocusOut>", lambda e: self.auto_format_description(widget))
             elif field == "status":
                 widget = ttk.Combobox(form_frame, values=["New", "In Progress", "Completed", "On Hold"])
                 widget.current(0)
@@ -585,18 +1017,25 @@ class OSRMTApp:
                 widget.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M"))
             elif field == "id":
                 widget = ttk.Entry(form_frame, width=30)
-                widget.insert(0, f"{table_type[:3].upper()}-{len(self.data_tables[table_type]) + 1:03d}")  # Auto-generate an ID
+                if table_type:
+                    widget.insert(0, f"{table_type[:3].upper()}-{len(self.data_tables.get(table_type, [])) + 1:03d}")  # Auto-generate an ID
+                else:
+                    widget.insert(0, "UNKNOWN-001")  # Default value if table_type is None
+                    print("Warning: table_type is None when generating ID")  # Debugging log
             else:
                 widget = ttk.Entry(form_frame, width=30)
 
             widget.grid(row=i, column=1, sticky=tk.W, padx=5, pady=5)
             entry_widgets[field] = widget
+            
 
         def validate_and_save():
             data = {}
             for field, widget in entry_widgets.items():
                 if isinstance(widget, tk.Text):
-                    data[field] = widget.get("1.0", tk.END).strip()
+                    raw_text = widget.get("1.0", tk.END).strip()
+                    # Add this conditional formatting:
+                    data[field] = self.format_description(raw_text) if field == "description" else raw_text
                 else:
                     data[field] = widget.get().strip()
 
@@ -633,6 +1072,13 @@ class OSRMTApp:
 
         cancel_button = ttk.Button(form_frame, text="Cancel", command=dialog.destroy)
         cancel_button.grid(row=len(headers) + 1, column=0, sticky=tk.W, padx=5, pady=10)
+        
+         # Adding Enter key bindings for all input fields
+        for widget in entry_widgets.values():
+            if isinstance(widget, (ttk.Entry, ttk.Combobox)):           
+                widget.bind("<Return>", lambda event: validate_and_save())
+            elif isinstance(widget, tk.Text):
+                widget.bind("<Return>", lambda event: validate_and_save())
 
 
     def update_data_table(self, table_type, index, updated_data):
@@ -661,7 +1107,9 @@ class OSRMTApp:
         data = self.data_tables[table_type][item_index]
         dialog = tk.Toplevel(self.root)
         dialog.title(f"Edit {table_type.capitalize()}")
-        dialog.geometry("500x400")
+        dialog.geometry("500x500")
+        # Set the window icon using PNG
+        self.set_app_icon("logo.png")  # Ensure "logo.png" is in the same directory
         dialog.transient(self.root)
         dialog.grab_set()
 
@@ -676,6 +1124,9 @@ class OSRMTApp:
             if field == "description":
                 widget = tk.Text(form_frame, height=4, width=40)
                 widget.insert("1.0", current_value)
+                # Add this line to bind the auto-formatting:
+                widget.bind("<FocusOut>", lambda e: self.auto_format_description(widget))
+
             elif field == "status":
                 widget = ttk.Combobox(form_frame, values=["New", "In Progress", "Completed", "On Hold"])
                 widget.set(current_value if current_value else "New")
@@ -695,7 +1146,9 @@ class OSRMTApp:
             updated_data = {}
             for field, widget in entry_widgets.items():
                 if isinstance(widget, tk.Text):
-                    updated_data[field] = widget.get("1.0", tk.END).strip()
+                    raw_text = widget.get("1.0", tk.END).strip()
+                    # Add this conditional formatting:
+                    updated_data[field] = self.format_description(raw_text) if field == "description" else raw_text
                 else:
                     updated_data[field] = widget.get()
             self.update_data_table(table_type, item_index, updated_data)
@@ -707,11 +1160,23 @@ class OSRMTApp:
         update_button.grid(row=len(headers) + 1, column=1, sticky=tk.E, padx=5, pady=10)
         cancel_button = ttk.Button(form_frame, text="Cancel", command=dialog.destroy)
         cancel_button.grid(row=len(headers) + 1, column=0, sticky=tk.W, padx=5, pady=10)
+        # Add Enter key bindings for all input fields
+        for widget in entry_widgets.values():
+            if isinstance(widget, (ttk.Entry, ttk.Combobox)):
+                widget.bind("<Return>", lambda event: update_entry())
+            elif isinstance(widget, tk.Text):
+                widget.bind("<Return>", lambda event: update_entry())
 
     def import_from_excel(self):
         """Imports data from an Excel file into the corresponding tables while preventing duplicate IDs."""
+        # Check if a project is selected
+        if not self.current_project_id:
+             messagebox.showerror("Error", "Please select a project before importing data.")
+             return
+        global df  # Ensure df is accessible throughout the function
         file_path = filedialog.askopenfilename(filetypes=[("Excel Files", "*.xlsx;*.xls")])
         if not file_path:
+            messagebox.showerror("Error", "No file selected")
             return
 
         try:
@@ -728,6 +1193,8 @@ class OSRMTApp:
                     df.columns = df.columns.str.strip()  # Remove whitespace from column names
                     debug_info.append(f"Checking sheet: {sheet_name}, Expected Headers: {headers}, Found Headers: {df.columns.tolist()}")
 
+                    df.fillna("", inplace=True)  # Replaces NaN with an empty string
+                    
                     if all(col in df.columns for col in headers):
                         data_list = df.to_dict(orient="records")
 
@@ -753,7 +1220,7 @@ class OSRMTApp:
                             messagebox.showwarning("Empty Data", f"Sheet '{sheet_name}' has headers but no data.")
                     else:
                         messagebox.showwarning("Invalid Format", f"Sheet '{sheet_name}' does not match the required format.\nFound headers: {df.columns.tolist()}")
-
+        
             if imported_count > 0:
                 messagebox.showinfo("Import Successful", f"Imported {imported_count} entries successfully.\nSkipped {skipped_count} duplicate entries.")
                 if self.current_view:
@@ -848,6 +1315,11 @@ class OSRMTApp:
 
 
     def new_item(self):
+        # Check if a project is selected
+        if not self.current_project_id:
+            messagebox.showerror("Error", "Please select a project before adding new records.")
+            return
+        
         selected_items = self.tree.selection()
         if not selected_items:
             messagebox.showinfo("New Item", "Please select a category first")
@@ -979,6 +1451,6 @@ class OSRMTApp:
         messagebox.showinfo("About", about_text)
 
 if __name__ == "__main__":
-    root = tk.Tk()
-    app = LoginApp(root)
-    root.mainloop()
+     root = tk.Tk()
+     app = LoginApp(root)
+     root.mainloop()
