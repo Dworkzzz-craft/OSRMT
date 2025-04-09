@@ -368,8 +368,7 @@ class RegisterApp:
         finally:
             cursor.close()
             conn.close()
-
-
+        
 class OSRMTApp:  
     def __init__(self, root, role):
         self.root = root
@@ -627,7 +626,6 @@ class OSRMTApp:
         
         # Add Refresh Button
         self.refresh_button = ttk.Button(self.toolbar, image=self.refresh_icon, command=self.refresh_application)
-        self.refresh_button.pack(side=tk.LEFT, padx=5, pady=5)
         ToolTip(self.refresh_button, text="Refresh")  # Add Tooltip
         
          # Add Delete Project button (Only for Admin)
@@ -890,13 +888,13 @@ class OSRMTApp:
         if table_type == "feature":
             return common + ["priority", "version"]
         elif table_type == "requirement":
-            return common + ["priority", "type", "source", "rationale"]
+            return common + ["priority", "version", "category", "assigned"]
         elif table_type == "design":
-            return common + ["component", "complexity", "dependencies"]
+            return common + ["priority", "version", "category"]
         elif table_type == "implementation":
             return common + ["language", "loc", "complexity", "developer"]
         elif table_type == "testcase":
-            return common + ["type", "preconditions", "expectedresult", "actualresult"]
+            return common + ["type", "prerequisites", "expectedresult", "actualresult"]
         else:
             return common
 
@@ -1436,7 +1434,7 @@ class OSRMTApp:
             self.undo_stack.append(action)
         elif action_type == "delete":
             table_type = action[1]
-            deleted_item = action[2]
+            deleted_item = action[2]            
             self.data_tables[table_type].remove(deleted_item)
             self.save_to_db(table_type, deleted_item, "delete")
             self.undo_stack.append(action)
