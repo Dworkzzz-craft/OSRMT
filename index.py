@@ -1,3 +1,4 @@
+import sys
 import hashlib
 from flask_cors import CORS
 import tkinter as tk
@@ -387,7 +388,13 @@ class OSRMTApp:
         self.root.bind("<Control-z>", lambda event: self.undo())
         self.root.bind("<F5>", lambda event: self.refresh_application())
         self.root.bind("<Control-y>", lambda event: self.redo())
-
+        self.root.bind("<Escape>", lambda event: self.on_close())
+        self.root.bind("<Control-s>", lambda event: self.save_to_db(self.current_view))
+        self.root.bind("<Control-p>", lambda event: self.print_table_as_excel())
+        self.root.bind("<Control-i>", lambda event: self.import_from_excel())
+        self.root.bind("<Control-e>", lambda event: self.export_to_excel())
+        self.root.bind("<Control-n>", lambda event: self.handle_ctrl_n())
+        
         self.root.geometry("1920x1080")
         self.font_size = 14  # Base font size for non-table widgets
         
@@ -429,6 +436,28 @@ class OSRMTApp:
 
         # Configure a custom style for the Treeview to show borders and use smaller font
         self.configure_treeview_style()
+        
+        self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+
+
+    def on_close(self):
+        """Properly exits the application when window is closed."""
+        print("🛑 Exiting application...")
+        self.root.quit()     # Stop mainloop
+        self.root.destroy()  # Destroy all widgets
+        sys.exit()  # Force full exit
+
+    def handle_ctrl_n(self):
+        """Smart handler for Ctrl+N — creates a new project or a new row."""
+        if self.current_mode == "users":
+            print("⚠️ Ctrl+N: No new user creation via shortcut.")
+            messagebox.showinfo("Info", "Use the 'Register New User' button to add a user.")
+        elif self.current_view:
+            print(f"🆕 Ctrl+N: Adding new row to table: {self.current_view}")
+            self.new_item()
+        else:
+            print("🆕 Ctrl+N: Creating new project")
+            self.create_new_project()
 
     def format_description(self, text, words_per_line=15):
         """Format description text to add new lines after certain words."""
@@ -646,6 +675,7 @@ class OSRMTApp:
         
         # Add Refresh Button
         self.refresh_button = ttk.Button(self.toolbar, image=self.refresh_icon, command=self.refresh_application)
+        self.import_button.pack(side=tk.LEFT, padx=2, pady=2)
         ToolTip(self.refresh_button, text="Refresh")  # Add Tooltip
         
          # Add Delete Project button (Only for Admin)
@@ -943,7 +973,7 @@ class OSRMTApp:
 
     
     def display_data_table(self, table_type):
-        self.current_view = "feature or requirement or design or implementation or testcase"  # Set the current view to the selected table type
+        self.current_view = table_type
         self.current_mode = None
         # Clear existing widgets from the right panel
         for widget in self.right_frame.winfo_children():
