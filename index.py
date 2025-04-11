@@ -234,9 +234,10 @@ class AdminPanel:
     
     
 class RegisterApp:
-    def __init__(self, root, admin_panel=None):
+    def __init__(self, root, admin_panel=None, on_success=None):
         self.root = root
         self.admin_panel = admin_panel  # Store reference to AdminPanel
+        self.on_success = on_success  # Store the callback
         self.root.title("Register User")
         self.root.geometry("400x400")
         
@@ -284,7 +285,7 @@ class RegisterApp:
         self.username_entry.bind("<Return>", lambda event: self.register())
         self.password_entry.bind("<Return>", lambda event: self.register())
         self.role_label.bind("<Return>", lambda event: self.register())
-        
+                   
     def toggle_password(self):
         """Toggle password visibility"""
         if self.password_entry.cget('show') == '*':
@@ -356,9 +357,16 @@ class RegisterApp:
             conn.commit()
             messagebox.showinfo("Success", "User registered successfully!")
             
+            # Safely call the refresh callback only if the UsersView is visible
+            try:
+                if self.on_success:
+                    self.on_success()
+            except Exception as e:
+                print(f"[WARN] Failed to refresh user list after registration: {e}")
+                
             # Close the registration window
             self.root.destroy()
-            
+                     
             # Enable the OSRMT button
             if self.admin_panel:
                 self.admin_panel.on_register_close()  # Call AdminPanel method to enable the button
@@ -376,6 +384,9 @@ class OSRMTApp:
         self.root.title("OSRMT")
         self.current_project_id = None  # Stores the selected project ID
         self.project_map = {}  # Map project names to IDs
+        self.root.bind("<Control-z>", lambda event: self.undo())
+        self.root.bind("<F5>", lambda event: self.refresh_application())
+        self.root.bind("<Control-y>", lambda event: self.redo())
 
         self.root.geometry("1920x1080")
         self.font_size = 14  # Base font size for non-table widgets
@@ -406,7 +417,10 @@ class OSRMTApp:
         self.redo_stack = deque()
 
         self.current_view = None  # Name of the currently selected table
+        self.current_mode = None  # To track if UsersView is active
         self.current_tableview = None  # Reference to the right-side Treeview
+        
+
 
         # Build UI components
         self.create_menu_bar()
@@ -415,7 +429,7 @@ class OSRMTApp:
 
         # Configure a custom style for the Treeview to show borders and use smaller font
         self.configure_treeview_style()
-     
+
     def format_description(self, text, words_per_line=15):
         """Format description text to add new lines after certain words."""
         if not text:
@@ -564,15 +578,21 @@ class OSRMTApp:
     def create_menu_bar(self):
         self.menu_bar = tk.Menu(self.root)
         file_menu = tk.Menu(self.menu_bar, tearoff=0)
-        file_menu.add_command(label="Open", command=self.open_product)
-        file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)
+        file_menu.add_command(label="Refresh (F5)", command=self.refresh_application)
         self.menu_bar.add_cascade(label="File", menu=file_menu)
 
         edit_menu = tk.Menu(self.menu_bar, tearoff=0)
         edit_menu.add_command(label="Undo", command=self.undo)
         edit_menu.add_command(label="Redo", command=self.redo)
         self.menu_bar.add_cascade(label="Edit", menu=edit_menu)
+        
+        if self.role == "admin":
+            admin_menu = tk.Menu(self.menu_bar, tearoff=0)
+            # edit_menu.add_command(label="Add New User", command=self.register_user)
+            admin_menu.add_command(label="History", command=lambda: self.history("History View"))
+            admin_menu.add_command(label="UsersView", command=self.UsersView)
+            self.menu_bar.add_cascade(label="Admin", menu=admin_menu)
         
         help_menu = tk.Menu(self.menu_bar, tearoff=0)
         help_menu.add_command(label="About", command=self.show_about)
@@ -687,22 +707,28 @@ class OSRMTApp:
     def refresh_application(self):
         """Refreshes the entire application UI, including side panels and table data."""
         try:
-            # Refresh project dropdown list
-            self.project_selection["values"] = self.get_projects()
+            if self.current_mode == "users":
+                self.UsersView()  # Rebuild the entire interface safely
+            
+            elif self.current_view or self.current_tableview:
+                # Refresh project dropdown list
+                self.project_selection["values"] = self.get_projects()
 
-            # Reload the left panel (Tree View)
-            for item in self.tree.get_children():
-                self.tree.delete(item)  # Clear existing tree items
-            self.initialize_sidebar()  # Re-initialize sidebar with latest data
+                # Reload the left panel (Tree View)
+                for item in self.tree.get_children():
+                    self.tree.delete(item)  # Clear existing tree items
+                self.initialize_sidebar()  # Re-initialize sidebar with latest data
 
-            # Reload data for the currently selected project
-            if self.current_project_id:
-                self.load_data_from_db()  # Fetch latest data from the database
-                self.display_data_table(self.current_view)  # Refresh the right panel table view
+                # Reload data for the currently selected project
+                if self.current_project_id:
+                    self.load_data_from_db()  # Fetch latest data from the database
+                    self.display_data_table(self.current_view)  # Refresh the right panel table view
 
-            # Update status bar
-            self.status_bar.config(text="Application refreshed successfully.")
+                # Update status bar
+                self.status_bar.config(text="Application refreshed successfully.")
 
+
+            
         except Exception as e:
             messagebox.showerror("Error", f"Failed to refresh: {str(e)}")
 
@@ -917,6 +943,8 @@ class OSRMTApp:
 
     
     def display_data_table(self, table_type):
+        self.current_view = "feature or requirement or design or implementation or testcase"  # Set the current view to the selected table type
+        self.current_mode = None
         # Clear existing widgets from the right panel
         for widget in self.right_frame.winfo_children():
             widget.destroy()
@@ -960,6 +988,8 @@ class OSRMTApp:
         y_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         x_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         treeview.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        treeview.bind("<Delete>", lambda event: self.delete_selected())
+
         
         # Populate treeview rows with data
         for row_data in self.data_tables.get(table_type, []):  # Safe dictionary access
@@ -1441,9 +1471,118 @@ class OSRMTApp:
         if self.current_view:
             self.display_data_table(self.current_view)
 
-    def dummy_action(self, action_name):
-        messagebox.showinfo("Action", f"{action_name} clicked - Feature not implemented yet")
+    def history(self, action_name):
+        messagebox.showinfo("History", f"{action_name} clicked - Feature not implemented yet")
+        
+    def UsersView(self):
+        self.current_mode = "users"
+        self.current_view = None
+        # Clear the right frame
+        for widget in self.right_frame.winfo_children():
+            widget.destroy()
 
+        # Ensure the frame is raised and visible
+        self.right_frame.lift()
+        self.right_frame.update_idletasks()
+
+        # UI Controls
+        control_frame = ttk.Frame(self.right_frame)
+        control_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        add_button = ttk.Button(control_frame, text="Register New User", command=self.open_register_user_popup)
+        add_button.pack(side=tk.LEFT, padx=5)
+
+        delete_button = ttk.Button(control_frame, text="Delete User", command=self.delete_selected_user)
+        delete_button.pack(side=tk.LEFT, padx=5)
+
+        self.users_tree = ttk.Treeview(
+            self.right_frame,
+            columns=("ID", "Username", "Role"),
+            show="headings",
+            selectmode="extended"  # allow multiple selection
+        )
+
+        self.users_tree.heading("ID", text="ID")
+        self.users_tree.heading("Username", text="Username")
+        self.users_tree.heading("Role", text="Role")
+        self.users_tree.pack(fill=tk.BOTH, expand=True)
+        self.users_tree.bind("<Delete>", lambda event: self.delete_selected_user())
+        
+        #Scrollbar right after Treeview creation
+        scrollbar = ttk.Scrollbar(self.right_frame, orient="vertical", command=self.users_tree.yview)
+        self.users_tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+
+        self.load_users_into_tree()
+
+        # Force redraw of treeview
+        self.users_tree.update_idletasks()
+
+        
+    def load_users_into_tree(self):
+        # RECONNECT to ensure latest data
+        conn = mysql.connector.connect(host='localhost', user='root', password='Employee@123', database='user_management')
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("SELECT id, username, role FROM users")
+        users = cursor.fetchall()
+        
+        self.users_tree.delete(*self.users_tree.get_children())  # Clear old data
+        for user in users:
+            self.users_tree.insert("", "end", values=(user["id"], user["username"], user["role"]))
+        cursor.close()
+        conn.close()
+        
+        # Force UI redraw and scroll to bottom
+        self.users_tree.update_idletasks()
+        self.users_tree.yview_moveto(1.0)
+
+
+    def delete_selected_user(self):
+        selected_items = self.users_tree.selection()
+        if not selected_items:
+            messagebox.showerror("Error", "Please select at least one user to delete.")
+            return
+
+        usernames = [self.users_tree.item(item)["values"][1] for item in selected_items]
+        confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete the following users?\n\n{', '.join(usernames)}")
+        if not confirm:
+            return
+
+        cursor = self.conn.cursor()
+        for item in selected_items:
+            user_id = self.users_tree.item(item)["values"][0]
+            cursor.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        self.conn.commit()
+        cursor.close()
+
+        self.load_users_into_tree()
+        messagebox.showinfo("Success", f"{len(selected_items)} user(s) deleted.")
+
+
+    def open_register_user_popup(self):
+        popup = tk.Toplevel(self.root)
+        
+        # Pass the callback to refresh user list on success
+        RegisterApp(popup, on_success=self.safe_users_refresh)
+        
+        popup.transient(self.root)
+        popup.grab_set()
+
+        def on_close():
+            popup.destroy()
+            self.safe_users_refresh()# Ensures full UI refresh if closed manually
+            
+        popup.protocol("WM_DELETE_WINDOW", on_close)
+        
+    def safe_users_refresh(self):
+        """Fully switch to UsersView and refresh user list."""
+        self.UsersView()  # This rebuilds the UsersView layout
+        self.right_frame.lift()  # Force switch to the user list panel
+        self.right_frame.tkraise()
+        self.right_frame.update_idletasks()
+        
+        
     def show_about(self):
         about_text = "OSRMT \nVersion 1.0\nOpen Source Requirements Management Tool"
         messagebox.showinfo("About", about_text)
