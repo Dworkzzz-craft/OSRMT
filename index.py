@@ -114,26 +114,42 @@ class LoginApp:
         hashed_password = hashlib.sha256(password.encode()).hexdigest()
 
         try:
-            conn = mysql.connector.connect(host='localhost', user='root', password='Employee@123', database='user_management')
+            conn = mysql.connector.connect(
+                host='localhost',
+                user='root',
+                password='Employee@123',
+                database='user_management'
+            )
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute('SELECT * FROM users WHERE username = %s AND password = %s', (username, hashed_password))
+            user = cursor.fetchone()
+
+            if user:
+                # Log login history
+                log_cursor = conn.cursor()
+                log_cursor.execute(
+                    'INSERT INTO login_history (username, login_time) VALUES (%s, %s)',
+                    (username, datetime.now())
+                )
+                conn.commit()
+                log_cursor.close()
+
+                role = user.get("role")
+                cursor.close()
+                conn.close()
+
+                if role == "admin":
+                    self.open_admin_panel(role)  # Redirect to admin panel
+                else:
+                    self.open_user_panel(role)
+            else:
+                cursor.close()
+                conn.close()
+                messagebox.showerror("Login Failed", "Invalid username or password")
+
         except mysql.connector.Error as err:
             messagebox.showerror("Database Error", str(err))
-            return
 
-        cursor = conn.cursor(dictionary=True)
-        cursor.execute('SELECT * FROM users WHERE username = %s AND password = %s', (username, hashed_password))
-        user = cursor.fetchone()
-
-        cursor.close()
-        conn.close()
-
-        if user:
-            role = user.get("role")
-            if  role == "admin":
-                self.open_admin_panel(role) # Redirect to admin panel
-            else:
-                self.open_user_panel(role)
-        else:
-            messagebox.showerror("Login Failed", "Invalid username or password")
 
     def open_admin_panel(self,role):
         self.root.destroy()
@@ -1501,7 +1517,125 @@ class OSRMTApp:
             self.display_data_table(self.current_view)
 
     def history(self, action_name):
-        messagebox.showinfo("History", f"{action_name} clicked - Feature not implemented yet")
+        # Clear the right frame
+        for widget in self.right_frame.winfo_children():
+            widget.destroy()
+
+        self.right_frame.lift()
+        self.right_frame.update_idletasks()
+
+        control_frame = ttk.Frame(self.right_frame)
+        control_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        export_button = ttk.Button(control_frame, text="Export to Excel", command=self.export_history_to_excel)
+        export_button.pack(side=tk.LEFT, padx=5)
+
+        clear_button = ttk.Button(control_frame, text="Clear History", command=self.clear_login_history)
+        clear_button.pack(side=tk.LEFT, padx=5)
+
+        refresh_button = ttk.Button(control_frame, text="Refresh", command=self.load_login_history)
+        refresh_button.pack(side=tk.LEFT, padx=5)
+        
+
+        # History TreeView setup
+        self.history_tree = ttk.Treeview(
+            self.right_frame,
+            columns=("ID", "Username", "Login Time"),
+            show="headings",
+            selectmode="browse"
+        )
+
+        self.history_tree.heading("ID", text="ID")
+        self.history_tree.heading("Username", text="Username")
+        self.history_tree.heading("Login Time", text="Login Time")
+
+        for col in ("ID", "Username", "Login Time"):
+            self.history_tree.column(col, anchor="center")
+
+        scrollbar = ttk.Scrollbar(self.right_frame, orient="vertical", command=self.history_tree.yview)
+        self.history_tree.configure(yscrollcommand=scrollbar.set)
+
+        self.history_tree.pack(fill=tk.BOTH, expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        self.load_login_history()  # Load data on open
+    
+
+    def load_login_history(self):
+        try:
+            cursor = self.conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, username, login_time FROM login_history ORDER BY login_time")
+            records = cursor.fetchall()
+            cursor.close()
+
+            self.history_tree.delete(*self.history_tree.get_children())  # Clear existing
+            for record in records:
+                self.history_tree.insert("", "end", values=(record["id"], record["username"], record["login_time"]))
+
+            self.history_tree.update_idletasks()
+
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+            
+    def export_history_to_excel(self):
+        try:
+            cursor = self.conn.cursor(dictionary=True)
+            cursor.execute("SELECT id, username, login_time FROM login_history ORDER BY login_time DESC")
+            records = cursor.fetchall()
+            cursor.close()
+
+            if not records:
+                messagebox.showinfo("Export", "No login history to export.")
+                return
+
+            file_path = filedialog.asksaveasfilename(
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+                title="Export Login History"
+            )
+            if not file_path:
+                return
+
+            # Create DataFrame
+            df = pd.DataFrame(records)
+
+            # Use XlsxWriter to control formatting
+            with pd.ExcelWriter(file_path, engine='xlsxwriter') as writer:
+                df.to_excel(writer, index=False, sheet_name="Login History")
+
+                workbook = writer.book
+                worksheet = writer.sheets["Login History"]
+
+                # Set column width for better visibility
+                worksheet.set_column('A:A', 10)  # ID column
+                worksheet.set_column('B:B', 20)  # Username
+                worksheet.set_column('C:C', 25)  # Login Time
+
+                # Apply datetime format
+                date_format = workbook.add_format({'num_format': 'yyyy-mm-dd hh:mm:ss'})
+                worksheet.set_column('C:C', 25, date_format)
+
+            messagebox.showinfo("Export Successful", f"Login history exported to:\n{file_path}")
+
+        except Exception as e:
+            messagebox.showerror("Export Failed", f"Error: {str(e)}")
+
+
+    def clear_login_history(self):
+        confirm = messagebox.askyesno("Confirm Clear", "Are you sure you want to delete all login history?")
+        if not confirm:
+            return
+
+        try:
+            cursor = self.conn.cursor()
+            cursor.execute("DELETE FROM login_history")
+            self.conn.commit()
+            cursor.close()
+            self.load_login_history()  # Refresh display
+            messagebox.showinfo("Cleared", "Login history has been cleared.")
+        except mysql.connector.Error as err:
+            messagebox.showerror("Database Error", str(err))
+
         
     def UsersView(self):
         self.current_mode = "users"
@@ -1526,7 +1660,7 @@ class OSRMTApp:
 
         self.users_tree = ttk.Treeview(
             self.right_frame,
-            columns=("ID", "Username", "Role"),
+            columns=("ID", "Username", "Role", "Registered Time"),
             show="headings",
             selectmode="extended"  # allow multiple selection
         )
@@ -1534,6 +1668,12 @@ class OSRMTApp:
         self.users_tree.heading("ID", text="ID")
         self.users_tree.heading("Username", text="Username")
         self.users_tree.heading("Role", text="Role")
+        self.users_tree.heading("Registered Time", text="Registered Time")
+        # Center-align all columns
+        for col in ("ID", "Username", "Role", "Registered Time"):
+            self.users_tree.column(col, anchor="center")
+
+        
         self.users_tree.pack(fill=tk.BOTH, expand=True)
         self.users_tree.bind("<Delete>", lambda event: self.delete_selected_user())
         
@@ -1553,12 +1693,12 @@ class OSRMTApp:
         conn = mysql.connector.connect(host='localhost', user='root', password='Employee@123', database='user_management')
         cursor = conn.cursor(dictionary=True)
         
-        cursor.execute("SELECT id, username, role FROM users")
+        cursor.execute("SELECT id, username, role, created_at FROM users")
         users = cursor.fetchall()
         
         self.users_tree.delete(*self.users_tree.get_children())  # Clear old data
         for user in users:
-            self.users_tree.insert("", "end", values=(user["id"], user["username"], user["role"]))
+            self.users_tree.insert("", "end", values=(user["id"], user["username"], user["role"], user["created_at"] if user["created_at"] else "N/A"))
         cursor.close()
         conn.close()
         
