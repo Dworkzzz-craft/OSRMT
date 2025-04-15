@@ -1,6 +1,6 @@
 # OSRMT
 
-#**Steps to Implement this project locally**
+# **Steps to Implement this project locally**
 
 1. DB realted info:
    a. First install MYSQL 8.0 database in yuor local system and login using root password and username
