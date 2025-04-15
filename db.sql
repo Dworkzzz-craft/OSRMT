@@ -89,8 +89,14 @@ CREATE TABLE projects (
 
 -- 2. Manually Register an Admin Run this SQL command to create an admin user
 
+-- NOTE: In VALUES--> 'admin_user' = "Enter your name" AND 'AdminPassword@123' = "Enter any password you want to set" AND 'admin' = remains as it is 
+
+-- It is required to implement this manually since we have to create the admin first to start registerting other users as well as additional admin if required thorugh application UI itself
+
 INSERT INTO users (username, password, role) 
 VALUES ('admin_user', SHA2('AdminPassword@123', 256), 'admin');
+
+
 
 -- 3. Alter table to include project id
 
