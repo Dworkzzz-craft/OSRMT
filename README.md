@@ -14,7 +14,7 @@
    e. Use 'pip install' to install the necessary modules and libraries which are mentioned in the index.py file.
    f. Run the file and enter the login credentials which you set while executing db.sql contents in your MYSQL software
 
-4. Thats it you are good to go now.
+4. Thats it you are good to go.
 
 
 # **Features**
