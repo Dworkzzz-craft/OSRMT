@@ -76,6 +76,11 @@ CREATE TABLE testcase (
     actualresult TEXT
 );
 
+CREATE TABLE login_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    login_time DATETIME NOT NULL
+);
 
 CREATE TABLE projects (
     id INT AUTO_INCREMENT PRIMARY KEY,
