@@ -77,7 +77,7 @@ CREATE TABLE testcase (
 );
 
 CREATE TABLE login_history (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id Varchar(50),
     username VARCHAR(255) NOT NULL,
     login_time DATETIME NOT NULL
 );
