@@ -11,9 +11,10 @@
    b. Create a virtual environment
    c. Create a python file named = index.py
    d. Copy and paste the contents of index.py file in this repo to the index.py file you created in your machine
-   e. Run the file and enter the login credentials which you set while executing db.sql contents in your MYSQL software
+   e. Use 'pip install' to install the necessary modules and libraries which are mentioned in the index.py file.
+   f. Run the file and enter the login credentials which you set while executing db.sql contents in your MYSQL software
 
-3. Thats it you are good to go now.
+4. Thats it you are good to go now.
 
 
 # **Features**
