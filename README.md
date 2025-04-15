@@ -1,4 +1,9 @@
 # OSRMT
+**OSRMT (Open Source Requirements Management Tool) is a Python-based desktop application designed to simplify software requirement tracking.
+It offers secure user authentication, role-based access, and efficient management of requirements, design, implementation, and test artifacts.
+The tool provides project-based data segregation with features like undo-redo, Excel import/export, and visual traceability.
+Built with Tkinter for the interface and MySQL for backend storage, OSRMT ensures both flexibility and reliability.
+Ideal for small to medium-sized teams aiming to streamline their development workflow and document management.**
 
 # **Steps to Implement this project locally**
 
