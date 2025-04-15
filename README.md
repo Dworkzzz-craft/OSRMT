@@ -16,4 +16,11 @@
 3. Thats it you are good to go now.
 
 
-**Features**
+# **Features**
+
+1. Only the admin can add, delete users as well as additional admin if required.
+2. Only admin can delete the respective projects.
+3. Only the admin can delete the records from the table.
+4. Users are not able to register themselves, instead they have to contact the admin to register themselves to acces this application.
+5. Users are only able to add, modify the records in the respective table but not able to delete them, the power to delete resides with the admin only.
+6. Users are only able to create new projects, but to delete any project resides with the admin only.
