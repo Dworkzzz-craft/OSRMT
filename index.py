@@ -392,7 +392,6 @@ class OSRMTApp:
         self.root.bind("<Control-s>", lambda event: self.save_to_db(self.current_view))
         self.root.bind("<Control-p>", lambda event: self.print_table_as_excel())
         self.root.bind("<Control-i>", lambda event: self.import_from_excel())
-        self.root.bind("<Control-e>", lambda event: self.export_to_excel())
         self.root.bind("<Control-n>", lambda event: self.handle_ctrl_n())
         
         self.root.geometry("1920x1080")
