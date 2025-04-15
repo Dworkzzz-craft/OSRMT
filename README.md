@@ -14,4 +14,6 @@ Steps to Implement this project locally
    e. Run the file and enter the login credentials which you set while executing db.sql contents in your MYSQL software
 
 3. Thats it you are good to go now.
-   
+
+
+**Features**
