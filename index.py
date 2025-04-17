@@ -127,11 +127,18 @@ class LoginApp:
             if user:
                 # Log login history
                 log_cursor = conn.cursor()
-                log_cursor.execute(
-                    'INSERT INTO login_history (username, login_time) VALUES (%s, %s)',
-                    (username, datetime.now())
-                )
-                conn.commit()
+                user_id = user.get("id") # <-- GET THE USER'S ID
+                
+                if user_id:    
+                    log_cursor.execute(
+                        # Include both user_id and username columns
+                        'INSERT INTO login_history (user_id, username, login_time) VALUES (%s, %s, %s)',
+                        # Pass user_id, username, and the current time
+                        (user_id, username, datetime.now())
+                    )
+                    conn.commit()
+                else:
+                    print(f"[ERROR] Could not log login history: User ID not found for username {username}")
                 log_cursor.close()
 
                 role = user.get("role")
@@ -405,7 +412,7 @@ class OSRMTApp:
         self.root.bind("<F5>", lambda event: self.refresh_application())
         self.root.bind("<Control-y>", lambda event: self.redo())
         self.root.bind("<Escape>", lambda event: self.on_close())
-        self.root.bind("<Control-s>", lambda event: self.save_to_db(self.current_view))
+        self.root.bind("<Control-s>", lambda event: self.export_to_excel(self.current_view))
         self.root.bind("<Control-p>", lambda event: self.print_table_as_excel())
         self.root.bind("<Control-i>", lambda event: self.import_from_excel())
         self.root.bind("<Control-n>", lambda event: self.handle_ctrl_n())
@@ -690,7 +697,7 @@ class OSRMTApp:
         
         # Add Refresh Button
         self.refresh_button = ttk.Button(self.toolbar, image=self.refresh_icon, command=self.refresh_application)
-        self.import_button.pack(side=tk.LEFT, padx=2, pady=2)
+        self.refresh_button.pack(side=tk.LEFT, padx=2, pady=2)
         ToolTip(self.refresh_button, text="Refresh")  # Add Tooltip
         
          # Add Delete Project button (Only for Admin)
@@ -798,16 +805,61 @@ class OSRMTApp:
         if not confirm:
             return
 
+        
         try:
             cursor = self.conn.cursor()
+
+            # --- START: Added Cascade Delete Logic ---
+            # List of tables that reference the project_id
+            related_tables = ["feature", "requirement", "design", "implementation", "testcase"]
+
+            print(f"Attempting to delete data related to project ID: {project_id}") # Optional: for debugging
+
+            # Loop through each related table and delete corresponding entries
+            for table_name in related_tables:
+                try:
+                    delete_related_sql = f"DELETE FROM {table_name} WHERE project_id = %s"
+                    cursor.execute(delete_related_sql, (project_id,))
+                    print(f"Deleted {cursor.rowcount} rows from '{table_name}' for project ID {project_id}") # Optional: for debugging
+                except mysql.connector.Error as table_err:
+                    # Handle cases where a table might not exist or have the column, though ideally they should
+                    print(f"Warning: Could not delete from table '{table_name}'. Error: {table_err}")
+                    # Depending on requirements, you might want to stop the whole process here or just log it.
+                    # For now, we'll just print a warning and continue.
+
+            # --- END: Added Cascade Delete Logic ---
+
+            # Now, delete the main project entry from the 'projects' table
+            print(f"Attempting to delete project entry with ID: {project_id}") # Optional: for debugging
             cursor.execute("DELETE FROM projects WHERE id = %s", (project_id,))
+            print(f"Deleted {cursor.rowcount} rows from 'projects' for project ID {project_id}") # Optional: for debugging
+
+
+            # Commit all deletions (related tables + projects table) as one transaction
             self.conn.commit()
             cursor.close()
 
-            messagebox.showinfo("Success", f"Project '{selected_project}' deleted successfully.")
-            self.project_selection["values"] = self.get_projects()  # Refresh the dropdown
+            messagebox.showinfo("Success", f"Project '{selected_project}' and all related data deleted successfully.")
+
+            # Refresh the project dropdown AFTER successful deletion and commit
+            self.project_selection.set('') # Clear selection
+            self.project_selection["values"] = self.get_projects()
+            self.current_project_id = None # Reset current project ID
+
+            # Optional: Clear the right panel or refresh the entire app if desired
+            # self.refresh_application() # Might be too much, could just clear the right panel
+            for widget in self.right_frame.winfo_children():
+                widget.destroy()
+            self.display_message("Project deleted. Select a project.")
+
+
         except mysql.connector.Error as err:
-            messagebox.showerror("Database Error", str(err))
+            # Rollback is implicit if commit fails, but good practice to show error
+            messagebox.showerror("Database Error", f"Failed to delete project or related data: {str(err)}")
+            # You might need to close the cursor if it's still open in an error state
+            if cursor and cursor.is_open():
+                cursor.close()
+        
     
     def get_projects(self):
         """Fetch available projects from the database."""
@@ -955,7 +1007,7 @@ class OSRMTApp:
 
     def get_headers_for_type(self, table_type):
         # Adjust these to match your database columns exactly (all lowercase)
-        common = ["id", "name", "description", "created", "modified", "status"]
+        common = ["id", "name", "description", "modified", "status"]
         if table_type == "feature":
             return common + ["priority", "version"]
         elif table_type == "requirement":
@@ -1009,6 +1061,11 @@ class OSRMTApp:
         fetch_button = ttk.Button(control_frame, text="Fetch",
                                   command=lambda: self.fetch_data(table_type))
         fetch_button.pack(side=tk.LEFT, padx=5)
+        
+        download_button = ttk.Button(control_frame,
+                                 text="Download Template", 
+                                 command=lambda: self.download_template(table_type))
+        download_button.pack(side=tk.LEFT, padx=5)
 
         # Only show delete button if the user is an admin
         if self.role == "admin":
@@ -1085,9 +1142,10 @@ class OSRMTApp:
             elif field == "priority":
                 widget = ttk.Combobox(form_frame, values=["Low", "Medium", "High", "Critical"])
                 widget.current(1)
-            elif field in ["created", "modified"]:
+            elif field =="modified":
                 widget = ttk.Entry(form_frame, width=30)
-                widget.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M"))
+                widget.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                widget.config(state='readonly') # Make it non-editable
             elif field == "id":
                 widget = ttk.Entry(form_frame, width=30)
                 if table_type:
@@ -1121,6 +1179,13 @@ class OSRMTApp:
             if not data.get("name"):
                 messagebox.showerror("Error", "Name cannot be empty.")
                 return
+            if not re.search(r'^[a-zA-Z]', data.get("name")):
+                messagebox.showerror(
+                    "Invalid Name",
+                    "Name must start with a letter (a-z or A-Z)."
+                )
+                return
+            
 
             # Check if ID already exists in the database
             cursor = self.conn.cursor(dictionary=True)
@@ -1208,7 +1273,8 @@ class OSRMTApp:
                 widget.set(current_value if current_value else "Medium")
             elif field == "modified":
                 widget = ttk.Entry(form_frame, width=30)
-                widget.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M"))
+                widget.insert(0, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                widget.config(state='readonly') # Make it non-editable
             else:
                 widget = ttk.Entry(form_frame, width=30)
                 widget.insert(0, str(current_value))
@@ -1224,6 +1290,22 @@ class OSRMTApp:
                     updated_data[field] = self.format_description(raw_text) if field == "description" else raw_text
                 else:
                     updated_data[field] = widget.get()
+                    
+            name_to_validate = updated_data.get("name", "") # Get the potentially updated name
+
+            # Check if empty
+            if not name_to_validate:
+                messagebox.showerror("Error", "Name cannot be empty.")
+                return # Stop updating
+
+            # Check if it contains at least one letter
+            if not re.search(r'^[a-zA-Z]', name_to_validate):
+                messagebox.showerror(
+                    "Invalid Name",
+                     "Name must start with a letter (a-z or A-Z)."
+                )
+                return # Stop updating
+            
             self.update_data_table(table_type, item_index, updated_data)
             self.save_to_db(table_type, updated_data, "edit", old_data=data)
             dialog.destroy()
@@ -1304,7 +1386,62 @@ class OSRMTApp:
         except Exception as e:
             messagebox.showerror("Import Failed", f"Error: {str(e)}")
 
+    def download_template(self, table_type):
+        """
+        Creates and downloads an empty Excel template for the specified table type.
+        Accepts table_type as an argument because it's called via lambda from display_data_table.
+        """
+        # Use the passed argument directly
+        if not table_type:
+            messagebox.showwarning("Download Template", "No table type specified for template.")
+            return
 
+        # 'table_type' variable is the passed argument
+        headers = self.get_headers_for_type(table_type)
+
+        try:
+            # Suggest a filename based on the passed table_type
+            default_filename = f"{table_type}_template.xlsx"
+            file_path = filedialog.asksaveasfilename(
+                initialfile=default_filename,
+                defaultextension=".xlsx",
+                filetypes=[("Excel files", "*.xlsx"), ("All files", "*.*")],
+                title=f"Save {table_type.capitalize()} Template"
+            )
+
+            if not file_path:
+                return # User cancelled
+
+            # Create an empty DataFrame with only the required headers
+            # This will result in an Excel file with just the header row
+            df_template = pd.DataFrame(columns=headers)
+
+            # Use XlsxWriter engine to write the template
+            with pd.ExcelWriter(file_path, engine="xlsxwriter") as writer:
+                sheet_name = f"{table_type.capitalize()} Template"
+                df_template.to_excel(writer, sheet_name=sheet_name, index=False)
+
+                # Optional: Adjust column widths for better usability
+                worksheet = writer.sheets[sheet_name]
+                # Set a minimum width or specific widths if desired
+                for i, header in enumerate(headers):
+                    col_len = len(header) + 2 # Basic width based on header length
+                    # Give more space for fields typically requiring it
+                    if header == 'description':
+                        worksheet.set_column(i, i, 30)
+                    elif header in ['prerequisites', 'expectedresult', 'actualresult']: # Testcase specific
+                        worksheet.set_column(i, i, 30)
+                    elif header == 'modified':
+                        worksheet.set_column(i, i, 20) # Standard width for dates
+                    else:
+                        # Apply minimum width or width based on header, whichever is larger
+                        worksheet.set_column(i, i, max(15, col_len))
+
+            messagebox.showinfo("Template Saved", f"Template file saved successfully to:\n{file_path}")
+
+        except Exception as e:
+            messagebox.showerror("Save Failed", f"Error saving template file: {str(e)}")
+    
     def export_to_excel(self, table_type):
         """Exports data from a selected table type to an Excel file."""
         if not table_type:
@@ -1540,16 +1677,16 @@ class OSRMTApp:
         # History TreeView setup
         self.history_tree = ttk.Treeview(
             self.right_frame,
-            columns=("ID", "Username", "Login Time"),
+            columns=("User ID", "Username", "Login Time"),
             show="headings",
             selectmode="browse"
         )
 
-        self.history_tree.heading("ID", text="ID")
+        self.history_tree.heading("User ID", text="User ID")
         self.history_tree.heading("Username", text="Username")
         self.history_tree.heading("Login Time", text="Login Time")
 
-        for col in ("ID", "Username", "Login Time"):
+        for col in ("User ID", "Username", "Login Time"):
             self.history_tree.column(col, anchor="center")
 
         scrollbar = ttk.Scrollbar(self.right_frame, orient="vertical", command=self.history_tree.yview)
@@ -1564,13 +1701,13 @@ class OSRMTApp:
     def load_login_history(self):
         try:
             cursor = self.conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, username, login_time FROM login_history ORDER BY login_time")
+            cursor.execute("SELECT user_id, username, login_time FROM login_history ORDER BY login_time")
             records = cursor.fetchall()
             cursor.close()
 
             self.history_tree.delete(*self.history_tree.get_children())  # Clear existing
             for record in records:
-                self.history_tree.insert("", "end", values=(record["id"], record["username"], record["login_time"]))
+                self.history_tree.insert("", "end", values=(record["user_id"], record["username"], record["login_time"]))
 
             self.history_tree.update_idletasks()
 
@@ -1580,7 +1717,7 @@ class OSRMTApp:
     def export_history_to_excel(self):
         try:
             cursor = self.conn.cursor(dictionary=True)
-            cursor.execute("SELECT id, username, login_time FROM login_history ORDER BY login_time DESC")
+            cursor.execute("SELECT user_id, username, login_time FROM login_history ORDER BY login_time")
             records = cursor.fetchall()
             cursor.close()
 
