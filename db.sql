@@ -110,3 +110,57 @@ ALTER TABLE requirement ADD COLUMN project_id INT;
 ALTER TABLE design ADD COLUMN project_id INT;
 ALTER TABLE implementation ADD COLUMN project_id INT;
 ALTER TABLE testcase ADD COLUMN project_id INT;
+
+--4.
+USE user_management;
+
+ALTER TABLE feature MODIFY modified DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE requirement  MODIFY modified DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE design MODIFY modified DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE implementation MODIFY modified DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+ALTER TABLE testcase MODIFY modified DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP;
+
+--5.
+-- Run this for feature, requirement, design, implementation, testcase
+ALTER TABLE feature DROP COLUMN created;
+ALTER TABLE requirement DROP COLUMN created;
+ALTER TABLE design DROP COLUMN created;
+ALTER TABLE implementation DROP COLUMN created;
+ALTER TABLE testcase DROP COLUMN created;
+
+
+--6.
+---- 1. Select the database
+USE user_management;
+
+---- 2. Add the new user_id column. Allow NULLs for now so we can populate it.
+ALTER TABLE login_history ADD COLUMN user_id INT NULL AFTER id; -- Position after id (optional)
+
+---- 3. Populate the new user_id column based on the existing username.
+-- This matches usernames between login_history and users table.
+-- Run this command carefully. If a username in login_history doesn't exist
+-- in the users table anymore, that row's user_id will remain NULL.
+UPDATE login_history lh
+JOIN users u ON lh.username = u.username
+SET lh.user_id = u.id
+WHERE lh.user_id IS NULL; -- Only update rows that haven't been processed
+
+-- Check if any rows failed to update (optional):
+-- SELECT * FROM login_history WHERE user_id IS NULL;
+-- If you find rows with NULL user_id, you may need to manually fix them or decide
+-- if that history record is still valid (e.g., if the user was deleted).
+
+---- 4. Add the Foreign Key constraint to link user_id to the users table.
+-- This enforces the relationship.
+ALTER TABLE login_history
+ADD CONSTRAINT fk_user_login
+FOREIGN KEY (user_id) REFERENCES users(id)
+ON DELETE CASCADE; -- Optional: ON DELETE CASCADE removes history if the user is deleted.
+                   -- Use ON DELETE SET NULL if you want to keep history but set user_id to NULL.
+                   -- Use ON DELETE RESTRICT (or omit ON DELETE) to prevent user deletion if history exists.
+
+---- 5. Modify the user_id column to require a value (NOT NULL).
+-- Do this ONLY AFTER successfully populating existing records in step 3.
+-- If some records have NULL user_id after step 3, this command will fail
+-- until those NULLs are resolved (either update them or delete those history rows).
+ALTER TABLE login_history MODIFY COLUMN user_id INT NOT NULL;
